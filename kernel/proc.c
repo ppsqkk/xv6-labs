@@ -146,6 +146,8 @@ found:
   p->context.ra = (uint64)forkret;
   p->context.sp = p->kstack + PGSIZE;
 
+  p->mask = 0;
+
   return p;
 }
 
@@ -311,6 +313,8 @@ fork(void)
   safestrcpy(np->name, p->name, sizeof(p->name));
 
   pid = np->pid;
+
+  np->mask = p->mask; // Does it matter where this is placed?
 
   release(&np->lock);
 
@@ -685,4 +689,12 @@ procdump(void)
     printf("%d %s %s", p->pid, state, p->name);
     printf("\n");
   }
+}
+
+int
+trace(int mask)
+{
+  struct proc *p = myproc();
+  p->mask = mask;
+  return 0;
 }
