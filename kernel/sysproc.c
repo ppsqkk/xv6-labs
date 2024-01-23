@@ -99,3 +99,11 @@ sys_trace(void)
   argint(0, &mask);
   return trace(mask);
 }
+
+uint64
+sys_sysinfo(void)
+{
+  uint64 addr;
+  argaddr(0, &addr);
+  return sysinfo(addr);
+}
