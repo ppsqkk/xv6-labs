@@ -6,11 +6,15 @@
 #include "defs.h"
 #include "fs.h"
 
+// A page table is the physical address of a
+// sequence of 8 byte PTEs (page table entries)
+
 /*
  * the kernel's page table.
  */
 pagetable_t kernel_pagetable;
 
+// kernel.ld guarantees that this is aligned on a page boundary (?)
 extern char etext[];  // kernel.ld sets this to end of kernel code.
 
 extern char trampoline[]; // trampoline.S
