@@ -453,3 +453,36 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
     return -1;
   }
 }
+
+void vmprint_help(pagetable_t pagetable, int level)
+{
+  // Start by printing out the level 1 PTEs
+  pte_t pte;
+
+  if (level == 1) {
+    printf("page table %p\n", pagetable);
+  }
+  for (int index = 0; index < 512; index++) {
+    pte = pagetable[index]; // PTEs on this level
+    // We can assume that a PTE on this level points to a pagetable
+    if (pte & PTE_V) {
+      pagetable_t child_pagetable = (pagetable_t)PTE2PA(pte);
+
+      // Print the level indicator
+      for (int j = 0; j < level; j++) {
+        printf(" ..");
+      }
+      printf("%d: pte %p pa %p\n", index, pte, child_pagetable);
+
+      // If we're not on the third pagetable level, we have more
+      if (level != 3) {
+        vmprint_help(child_pagetable, level+1);
+      }
+    }
+  }
+}
+
+void vmprint(pagetable_t pagetable)
+{
+  vmprint_help(pagetable, 1);
+}
