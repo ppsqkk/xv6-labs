@@ -708,3 +708,24 @@ procdump(void)
     printf("\n");
   }
 }
+
+void pgaccess(uint64 uva_base, int npages, uint64 uva_mask)
+{
+  struct proc *p = myproc();
+  pagetable_t upgtbl = p->pagetable;
+  uint64 mask = 0; // Check up to 64 pages
+
+  for (int i = 0; i < npages; i++) {
+    // walk presumably returns a kernel virtual address,
+    // which is also a physical address.
+    // Anyways, does it even matter here?
+    pte_t *pte = walk(upgtbl, uva_base, 0);
+    if (*pte & PTE_A) {
+      mask |= 1<<i;
+      *pte = *pte & ~PTE_A; // Reset
+    }
+    uva_base += PGSIZE;
+  }
+  uint64 copy_len_bytes = (npages+7)/8;
+  copyout(upgtbl, uva_mask, (char *)&mask, copy_len_bytes);
+}

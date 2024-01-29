@@ -74,7 +74,15 @@ sys_sleep(void)
 int
 sys_pgaccess(void)
 {
-  // lab pgtbl: your code here.
+  uint64 uva_base;
+  int npages;
+  uint64 uva_mask;
+
+  argaddr(0, &uva_base);
+  argint(1, &npages);
+  argaddr(2, &uva_mask);
+
+  pgaccess(uva_base, npages, uva_mask);
   return 0;
 }
 #endif
