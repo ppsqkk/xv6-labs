@@ -146,6 +146,8 @@ found:
   p->context.ra = (uint64)forkret;
   p->context.sp = p->kstack + PGSIZE;
 
+  p->ticks_elapsed = 0;
+  p->alarm_trapframe = 0;
   return p;
 }
 
@@ -685,4 +687,28 @@ procdump(void)
     printf("%d %s %s", p->pid, state, p->name);
     printf("\n");
   }
+}
+
+void
+sigalarm(int ticks, uint64 uva_handler)
+{
+  struct proc *p = myproc();
+
+  p->ticks_threshold = ticks;
+  p->uva_handler = uva_handler;
+}
+
+uint64
+sigreturn(void)
+{
+  struct proc *p = myproc();
+
+  // Restore previous trapframe
+  memmove(p->trapframe, p->alarm_trapframe, sizeof(struct trapframe));
+  kfree(p->alarm_trapframe);
+  p->alarm_trapframe = 0; // Allow the next handler call
+
+  // We need to restore a0, which is overwritten by system call return value.
+  // Solution: return a0
+  return p->trapframe->a0;
 }

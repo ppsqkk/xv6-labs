@@ -67,6 +67,38 @@ usertrap(void)
     syscall();
   } else if((which_dev = devintr()) != 0){
     // ok
+    if (which_dev == 2) {
+      // Goal: make the call to handler invisible
+      //
+      // Control flow:
+      // 0. Timer interrupt
+      // 1. Trapframe saves current "position" in user program (pos1)
+      //    We need to restore pos1 after handler.
+      // 2. Save pos1 in kernel
+      // 3. Return to user space to execute handler
+      //    All pos1 registers are restored (meaningless in handler context).
+      // 4. Handler calls sigreturn
+      // 5. Trapframe saves position at end of handler (pos2)
+      //    Restoring pos2 is definitely wrong. If we do that, handler
+      //    will be allowed to normally return, and will return to pos1's
+      //    $ra, which is meaningless. Basically, pos2 is junk.
+      // 6. Restore saved pos1, then return to user space
+      if (p->ticks_threshold != 0) {
+        // Alarm is enabled
+        p->ticks_elapsed++;
+
+        if (p->ticks_elapsed >= p->ticks_threshold && p->alarm_trapframe == 0) {
+          // It is time to call handler, and handler is not executing
+          p->ticks_elapsed = 0; // Reset ticks
+          p->alarm_trapframe = kalloc();
+          memmove(p->alarm_trapframe, p->trapframe, sizeof(struct trapframe));
+
+          // We saved epc, so now we are free to change it
+          p->trapframe->epc = p->uva_handler;
+          usertrapret();
+        }
+      }
+    }
   } else {
     printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
     printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
