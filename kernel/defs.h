@@ -64,6 +64,9 @@ void*           kalloc(void);
 void            kfree(void *);
 void            kinit(void);
 
+extern int      refcnt[];
+#define REFCNT_LVALUE(pa) (refcnt[(uint64)(pa) / PGSIZE])
+
 // log.c
 void            initlog(int, struct superblock*);
 void            log_write(struct buf*);

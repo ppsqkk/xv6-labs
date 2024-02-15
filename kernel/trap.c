@@ -67,7 +67,39 @@ usertrap(void)
     syscall();
   } else if((which_dev = devintr()) != 0){
     // ok
+  } else if (r_scause() == 15) {
+    // There was a store page fault
+
+    // stval contains the faulting user VA
+    uint64 fault_uva = r_stval();
+    if (fault_uva >= MAXVA) {
+      // MAXVAplus will fail without this
+      goto bad;
+    }
+
+    pte_t* fault_pte_p = walk(p->pagetable, fault_uva, 0);
+    if (fault_pte_p == 0) {
+      goto bad;
+    }
+    if ((*fault_pte_p & PTE_V) == 0) {
+      goto bad;
+    }
+    if ((PTE_FLAGS(*fault_pte_p) & PTE_RSW1) == 0) {
+      // Cannot copy on write
+      goto bad;
+    }
+
+    // Else
+    uint64 fault_pa = PTE2PA(*fault_pte_p);
+    uint64 new_page_pa = (uint64)kalloc();
+    if (new_page_pa == 0) {
+      goto bad;
+    }
+    memmove((void *)new_page_pa, (void *)fault_pa, PGSIZE); // Copy
+    kfree((void *)fault_pa); // Free after copy
+    *fault_pte_p = PA2PTE(new_page_pa) | PTE_FLAGS(*fault_pte_p) | PTE_W; // Update PTE
   } else {
+bad:
     printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
     printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
     setkilled(p);

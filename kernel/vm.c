@@ -315,7 +315,6 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
   pte_t *pte;
   uint64 pa, i;
   uint flags;
-  char *mem;
 
   for(i = 0; i < sz; i += PGSIZE){
     if((pte = walk(old, i, 0)) == 0)
@@ -323,12 +322,22 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
     if((*pte & PTE_V) == 0)
       panic("uvmcopy: page not present");
     pa = PTE2PA(*pte);
+
+    // For parent
+    if (PTE_FLAGS(*pte) & PTE_W) {
+      // If originally writable, set COW bit
+      *pte |= PTE_RSW1;
+    }
+    *pte &= ~PTE_W; // Set non-writable
+
+    // For child
     flags = PTE_FLAGS(*pte);
-    if((mem = kalloc()) == 0)
-      goto err;
-    memmove(mem, (char*)pa, PGSIZE);
-    if(mappages(new, i, PGSIZE, (uint64)mem, flags) != 0){
-      kfree(mem);
+
+    // Increase reference count for this page
+    REFCNT_LVALUE(pa)++;
+
+    // Directly map to parent page
+    if(mappages(new, i, PGSIZE, pa, flags) != 0){
       goto err;
     }
   }
@@ -367,8 +376,18 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
       return -1;
     pte = walk(pagetable, va0, 0);
     if(pte == 0 || (*pte & PTE_V) == 0 || (*pte & PTE_U) == 0 ||
-       (*pte & PTE_W) == 0)
+       ((*pte & PTE_W) == 0 && (*pte & PTE_RSW1) == 0))
       return -1;
+
+    if (!(*pte & PTE_W)) {
+      if ((pa0 = (uint64)kalloc()) == 0) {
+        return -1;
+      }
+      // Easiest: copy in all data from parent page first
+      memmove((void *)pa0, (void *)PTE2PA(*pte), PGSIZE);
+      kfree((void *)PTE2PA(*pte));
+      *pte = PA2PTE(pa0) | PTE_FLAGS(*pte) | PTE_W;
+    }
     pa0 = PTE2PA(*pte);
     n = PGSIZE - (dstva - va0);
     if(n > len)
